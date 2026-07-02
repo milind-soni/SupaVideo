@@ -1,0 +1,21 @@
+{
+  "name": "supavideo",
+  "version": "0.1.0",
+  "description": "Give an agent a task, get a polished demo video of it driving the desktop. Bridges cua-driver (background computer-use + recording) and OpenScreen (Screen-Studio-style render).",
+  "type": "module",
+  "bin": {
+    "supavideo": "src/cli.ts"
+  },
+  "engines": {
+    "node": ">=22.6"
+  },
+  "scripts": {
+    "test": "node --test 'src/**/*.test.ts'",
+    "cli": "node src/cli.ts",
+    "mcp": "node src/mcp/server.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "zod": "^3.23.0"
+  }
+}
