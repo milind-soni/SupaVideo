@@ -42,6 +42,8 @@ export interface ClickRecord {
   wx: number;
   wy: number;
   label?: string;
+  /** "click" (default) draws a click + zoom; "move" is a cursor waypoint only. */
+  kind?: "click" | "move";
 }
 
 export interface FinishOptions {
@@ -232,7 +234,9 @@ export class DemoSession {
       });
     });
 
-    await sleep(400); // small pre-roll before the first action
+    // Pre-roll: give the demo a full-frame establishing shot. OpenScreen's
+    // zoom-in ramp needs ~1.1s before the first zoom region starts.
+    await sleep(1200);
 
     return new DemoSession({
       app, target, workDir, videoPath, openscreenDir, fps, cuaBin, helper, helperRl, tStartWall,
@@ -242,13 +246,46 @@ export class DemoSession {
   /** Click the target window at window-local points; the click is logged as the cursor path. */
   async click(wx: number, wy: number, label?: string): Promise<ClickRecord> {
     if (this.finished) throw new Error("session already finished");
-    const rec: ClickRecord = { tMs: this.elapsedMs, wx, wy, label };
+    const rec: ClickRecord = { tMs: this.elapsedMs, wx, wy, label, kind: "click" };
     this.clicks.push(rec);
     await cua(this.cuaBin, "click", {
       pid: this.target.pid,
       window_id: this.target.windowId,
       x: wx,
       y: wy,
+    });
+    return rec;
+  }
+
+  /**
+   * Type text into the app (focused field). The cursor stays where it is; time
+   * simply passes in the demo while the app shows the typing.
+   */
+  async type(text: string): Promise<void> {
+    if (this.finished) throw new Error("session already finished");
+    await cua(this.cuaBin, "type_text", { pid: this.target.pid, text });
+  }
+
+  /**
+   * Scroll at a window-local point. Logged as a cursor MOVE waypoint (the demo
+   * cursor glides there) without a click bounce or zoom region of its own.
+   */
+  async scroll(
+    wx: number,
+    wy: number,
+    direction: "up" | "down" | "left" | "right",
+    amount = 3,
+  ): Promise<ClickRecord> {
+    if (this.finished) throw new Error("session already finished");
+    const rec: ClickRecord = { tMs: this.elapsedMs, wx, wy, label: `scroll-${direction}`, kind: "move" };
+    this.clicks.push(rec);
+    await cua(this.cuaBin, "scroll", {
+      pid: this.target.pid,
+      window_id: this.target.windowId,
+      x: wx,
+      y: wy,
+      direction,
+      amount,
     });
     return rec;
   }
@@ -294,6 +331,7 @@ export class DemoSession {
       x: Math.round(c.wx * k),
       y: Math.round(c.wy * k),
       label: c.label,
+      ...(c.kind === "move" ? { type: "move" } : {}),
     }));
     const clicksPath = path.join(this.workDir, "clicks.json");
     await writeFile(clicksPath, JSON.stringify(clicksPx, null, 2));
@@ -305,7 +343,8 @@ export class DemoSession {
       "--clicks", clicksPath,
       "--out", outputPath,
       "--fps", String(this.fps),
-      "--width", String(opts.width ?? 1920),
+      // 2560 keeps the Retina capture crisp; 1920 was visibly soft.
+      "--width", String(opts.width ?? 2560),
     ];
     if (opts.noZoom) args.push("--no-zoom");
     if (opts.wallpaper) args.push("--wallpaper", opts.wallpaper);

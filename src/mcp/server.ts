@@ -131,6 +131,40 @@ server.registerTool(
 );
 
 server.registerTool(
+  "supavideo_type",
+  {
+    description:
+      "Type text into the recorded app (into the currently focused field — click a " +
+      "field first). The demo shows the app receiving the text; the cursor stays put.",
+    inputSchema: { sessionId: z.string(), text: z.string() },
+  },
+  async ({ sessionId, text }) => {
+    await getSession(sessionId).type(text);
+    return { content: [{ type: "text", text: `typed ${JSON.stringify(text)}` }] };
+  },
+);
+
+server.registerTool(
+  "supavideo_scroll",
+  {
+    description:
+      "Scroll the recorded window at window-local point (x, y). The demo cursor " +
+      "glides there (no click bounce / zoom).",
+    inputSchema: {
+      sessionId: z.string(),
+      x: z.number(),
+      y: z.number(),
+      direction: z.enum(["up", "down", "left", "right"]),
+      amount: z.number().optional().describe("Scroll repetitions, default 3"),
+    },
+  },
+  async ({ sessionId, x, y, direction, amount }) => {
+    const rec = await getSession(sessionId).scroll(x, y, direction, amount ?? 3);
+    return { content: [{ type: "text", text: `scrolled ${direction} at (${x},${y}) t=${rec.tMs}ms` }] };
+  },
+);
+
+server.registerTool(
   "supavideo_finish_demo",
   {
     description:
@@ -139,7 +173,7 @@ server.registerTool(
     inputSchema: {
       sessionId: z.string(),
       out: z.string().describe("Output MP4 path"),
-      width: z.number().optional().describe("Output width px (default 1920)"),
+      width: z.number().optional().describe("Output width px (default 2560, crisp)"),
       noZoom: z.boolean().optional(),
       wallpaper: z.string().optional().describe("CSS gradient/color or OpenScreen wallpaper id"),
     },
